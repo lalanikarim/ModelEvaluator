@@ -1,0 +1,4 @@
+results/
+poc/data/
+*.sqlite
+.env
