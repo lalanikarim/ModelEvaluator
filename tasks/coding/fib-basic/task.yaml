@@ -1,0 +1,15 @@
+id: fib-basic
+track: coding
+title: "Fibonacci module (basic)"
+prompt: |
+  Create a file fib.py in your working directory that prints the first 10 Fibonacci numbers, one per line. Run it with bash to verify it works, and fix any errors until it runs cleanly.
+tools: coding
+oracle:
+  type: tests
+  hidden_tests:
+    - hidden_tests/test_fib_basic.py
+budget:
+  max_turns: 20
+  max_tokens: 50000
+  timeout_sec: 300
+repeats: 5

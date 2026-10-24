@@ -1,0 +1,22 @@
+# Candidate model matrix. One entry per model under evaluation.
+#
+# Fields:
+#   id             unique short id (used in paths and reports)
+#   family         model family (judge is chosen from a different family)
+#   endpoint       OpenAI-compatible base URL; defaults to $OPENAI_BASE_URL
+#   apiKeyEnv      env var holding the API key; defaults to OPENAI_API_KEY
+#   model_id       explicit served model id, or "auto" to discover via /models
+#                  (prefers the model currently `loaded`)
+#   quant          quantization label for the manifest (e.g. Q4_K_M)
+#   thinking_level pi-durable thinking level: low | medium | high
+#
+# NOTE: one model at a time per host — entries sharing an endpoint must be
+# swapped in/out of VRAM between runs; the harness refuses concurrent use.
+
+models:
+  - id: qwen38-27b-gsq
+    family: qwen
+    # endpoint: http://localhost:8000/v1   # defaults to $OPENAI_BASE_URL
+    model_id: auto
+    quant: GSQ-RCO
+    thinking_level: medium

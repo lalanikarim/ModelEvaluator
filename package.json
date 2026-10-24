@@ -1,0 +1,21 @@
+{
+  "name": "model-evaluator",
+  "version": "0.1.0",
+  "description": "Harness that pits language models against each other on planning and coding tasks, with reproducible runs and a static leaderboard.",
+  "type": "module",
+  "private": true,
+  "license": "MIT",
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "scripts": {
+    "run": "node run.mjs",
+    "list": "node run.mjs --list"
+  },
+  "dependencies": {
+    "@earendil-works/chord": "1.3.0",
+    "@earendil-works/pi-ai": "1.3.0",
+    "@earendil-works/pi-durable": "1.3.0",
+    "yaml": "^2.7.0"
+  }
+}
