@@ -1,4 +1,4 @@
 results/
-poc/data/
+node_modules/
 *.sqlite
 .env

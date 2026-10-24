@@ -1,0 +1,15 @@
+id: fib-refactor
+track: coding
+title: "Fibonacci module (refactor)"
+prompt: |
+  Create a file fib.py in your working directory that prints the first 10 Fibonacci numbers, one per line. Run it with bash and note the baseline output. Then modify fib.py to add a module docstring and type hints while keeping its output identical. Re-run it with bash and confirm the output is unchanged from the baseline.
+tools: coding
+oracle:
+  type: tests
+  hidden_tests:
+    - hidden_tests/test_fib_refactor.py
+budget:
+  max_turns: 25
+  max_tokens: 60000
+  timeout_sec: 420
+repeats: 5
