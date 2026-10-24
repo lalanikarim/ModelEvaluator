@@ -16,8 +16,20 @@ function validate(task, relPath) {
   const dirName = relPath.split("/")[1];
   if (task.id !== dirName) throw new Error(`${relPath}: task.id '${task.id}' must match directory name '${dirName}'`);
   if (!task.oracle?.type) throw new Error(`${relPath}: oracle.type required`);
-  for (const t of task.oracle.hidden_tests ?? []) {
-    if (!existsSync(join(task.dir, t))) throw new Error(`${relPath}: hidden test not found: ${t}`);
+  if (task.oracle.type === "tests") {
+    for (const t of task.oracle.hidden_tests ?? []) {
+      if (!existsSync(join(task.dir, t))) throw new Error(`${relPath}: hidden test not found: ${t}`);
+    }
+  } else if (task.oracle.type === "plan") {
+    const rubric = task.oracle.rubric;
+    if (!Array.isArray(rubric?.criteria) || rubric.criteria.length === 0) throw new Error(`${relPath}: plan oracle requires rubric.criteria`);
+    if (rubric.pass_threshold == null || rubric.pass_threshold < 1 || rubric.pass_threshold > 5) {
+      throw new Error(`${relPath}: rubric.pass_threshold must be in 1..5`);
+    }
+    const wsum = rubric.criteria.reduce((a, c) => a + (rubric.weights?.[c] ?? 0), 0);
+    if (Math.abs(wsum - 1) > 0.01) throw new Error(`${relPath}: rubric weights must sum to 1 (got ${wsum})`);
+  } else {
+    throw new Error(`${relPath}: unknown oracle.type '${task.oracle.type}'`);
   }
   const b = task.budget;
   for (const k of ["max_turns", "max_tokens", "timeout_sec"]) {

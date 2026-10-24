@@ -1,0 +1,21 @@
+id: retry-plan
+track: planning
+title: "Plan: add retry-with-backoff to fetch_url"
+prompt: |
+  Read the files in your working directory (client.py, README.md). Produce a plan in markdown to add retry-with-backoff support to client.fetch_url. The plan must cover: ordered implementation steps, which files to modify or create, a test strategy, and risks/edge cases. Do not write code — plan only.
+tools: planning
+oracle:
+  type: plan
+  gates:
+    required_terms: ["client.py", "test"]
+    forbidden_terms: []
+    min_words: 150
+  rubric:
+    criteria: [completeness, feasibility, risk_awareness, scope_discipline]
+    weights: { completeness: 0.3, feasibility: 0.3, risk_awareness: 0.2, scope_discipline: 0.2 }
+    pass_threshold: 3   # weighted average on a 1-5 scale must reach this to count as a pass
+budget:
+  max_turns: 15
+  max_tokens: 40000
+  timeout_sec: 300
+repeats: 5

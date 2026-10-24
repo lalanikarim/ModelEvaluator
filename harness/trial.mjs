@@ -6,7 +6,7 @@ import { CodingTools, createReadTool } from "@earendil-works/pi-durable/tools";
 import { NodeExecutionEnv } from "@earendil-works/pi-durable/env/node";
 import { openNodeSqliteStorage } from "@earendil-works/pi-durable/storage/sqlite/node";
 import { execSync } from "node:child_process";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 const ctx = BACKGROUND_CONTEXT;
@@ -40,15 +40,19 @@ function gitCommit() {
  * @param {object} p.model     models.yaml entry
  * @param {{providerId: string, modelId: string, modelName: string}} p.resolved
  * @param {object} p.models    pi-ai Models registry for this model
+ * @param {{baseUrl: string, apiKey: string, modelId: string, sameAsCompetitor?: boolean}} [p.judge]
  * @param {string} p.runDir    results/<run_id>
  * @param {number} p.repeat    1-based repeat index
  * @param {boolean} p.warmup   true if this run is discarded from scoring
  * @returns {Promise<object>} trial record (also written to disk)
  */
-export async function runTrial({ task, model, resolved, models, runDir, repeat, warmup }) {
+export async function runTrial({ task, model, resolved, models, judge, runDir, repeat, warmup }) {
   const trialDir = join(runDir, model.id, task.id, `r${repeat}`);
   const workdir = join(trialDir, "work");
   mkdirSync(workdir, { recursive: true });
+  // Seed fixture files (e.g. the codebase a planning task must read).
+  const fixtureDir = join(task.dir, "fixture");
+  if (existsSync(fixtureDir)) cpSync(fixtureDir, workdir, { recursive: true });
 
   const manifest = {
     run_id: runDir.split("/").pop(),
@@ -63,6 +67,8 @@ export async function runTrial({ task, model, resolved, models, runDir, repeat, 
     git_commit: gitCommit(),
     harness_version: HARNESS_VERSION,
     warmup,
+    judge_model: task.oracle.type === "plan" ? judge?.modelId ?? null : undefined,
+    judge_same_as_competitor: task.oracle.type === "plan" ? Boolean(judge?.sameAsCompetitor) : undefined,
     start_ts: new Date().toISOString(),
   };
 
@@ -126,13 +132,27 @@ export async function runTrial({ task, model, resolved, models, runDir, repeat, 
       record.error = `run settled with status ${settled?.status ?? "unknown"}`;
     }
 
-    // Oracle scoring (coding track: hidden tests). Planning track is Phase 3.
+    // Scoring dispatch: coding track -> hidden tests; planning track -> gates + blind LLM judge.
     if (task.oracle.type === "tests") {
       const { runOracle } = await import("../scorers/oracle.mjs");
       record.oracle = runOracle(task, workdir);
       record.ok = record.status === "done" && record.oracle.pass;
+    } else if (task.oracle.type === "plan") {
+      const { checkPlanGates } = await import("../scorers/plan-gates.mjs");
+      const { judgePlan } = await import("../scorers/judge.mjs");
+      record.gates = checkPlanGates(task, record.answer);
+      if (record.status === "done") {
+        try {
+          record.judge = await judgePlan(task, record.answer, judge);
+        } catch (err) {
+          record.judge = { error: String(err?.message ?? err).slice(0, 300) };
+        }
+      }
+      const threshold = task.oracle.rubric.pass_threshold;
+      record.ok = record.status === "done" && record.gates.pass
+        && !record.judge?.error && record.judge.weighted_avg >= threshold;
     } else {
-      record.ok = false; // scoring not implemented for this oracle type yet
+      record.ok = false; // unknown oracle type (should be caught by validation)
     }
   } catch (err) {
     // Distinguish infra failures (endpoint down, harness crash) from model failure.

@@ -100,7 +100,10 @@ function render({ runId, records, aggregate, elo }) {
         ${r.metrics ? `· ${r.metrics.secs}s · ${r.metrics.turns} turns · tok ${r.metrics.uIn}/${r.metrics.uOut}` : ""}</summary>
       <p><code>served: ${esc(m.served_model)} @ ${esc(m.endpoint)} · quant ${esc(m.quant ?? "?")} · thinking ${esc(m.thinking_level)} · commit ${esc(m.git_commit)}</code></p>
       ${r.error ? `<p class="err">error: ${esc(r.error)}</p>` : ""}
-      ${r.answer ? `<h4>final answer</h4><pre>${esc(r.answer)}</pre>` : ""}
+      ${r.gates && !r.gates.pass ? `<p class="err">gates failed: ${esc(r.gates.failures.join("; "))}</p>` : ""}
+      ${r.judge?.scores ? `<p>judge: ${Object.entries(r.judge.scores).map(([k, v]) => `${esc(k)}=${v}`).join(", ")} · avg ${r.judge.weighted_avg}</p><pre>${esc(r.judge.rationale)}</pre>` : ""}
+      ${r.judge?.error ? `<p class="err">judge error: ${esc(r.judge.error)}</p>` : ""}
+      ${r.answer ? `<h4>final answer / plan</h4><pre>${esc(r.answer)}</pre>` : ""}
       ${oracleOut ? `<h4>oracle output</h4>${oracleOut}` : ""}
     </details>`;
   }).join("\n");

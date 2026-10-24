@@ -4,6 +4,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { resolveModel, modelsRegistry } from "./models.mjs";
+import { loadJudgeConfig } from "../scorers/judge.mjs";
 import { runTrial } from "./trial.mjs";
 
 const MAX_INFRA_RETRIES = 2;
@@ -11,6 +12,17 @@ const MAX_INFRA_RETRIES = 2;
 export async function runSuite({ tasks, models, runDir, repeatsOverride, onProgress }) {
   mkdirSync(runDir, { recursive: true });
   const records = [];
+
+  // Resolve the judge once if any task needs it. Note: resolveModel mirrors the
+  // entry's key into OPENAI_API_KEY (pi-ai reads it at request time) — safe here
+  // because competitor and judge runs are strictly sequential.
+  let judge = null;
+  if (tasks.some((t) => t.oracle.type === "plan")) {
+    const jEntry = loadJudgeConfig();
+    const jResolved = await resolveModel({ ...jEntry, id: `judge-${jEntry.id}` });
+    judge = { ...jResolved, apiKey: process.env[jResolved.apiKeyEnv], sameAsCompetitor: jEntry.sameAsCompetitor };
+    onProgress?.(`judge → '${judge.modelName}' @ ${judge.baseUrl}${jEntry.sameAsCompetitor ? " (same as competitor — flagged)" : ""}`);
+  }
 
   for (const model of models) {
     // Resolve once per model: sequential runs mean the endpoint serves exactly this model.
@@ -23,7 +35,7 @@ export async function runSuite({ tasks, models, runDir, repeatsOverride, onProgr
       for (let r = 1; r <= repeats; r++) {
         let record;
         for (let attempt = 0; ; attempt++) {
-          record = await runTrial({ task, model, resolved, models: registry, runDir, repeat: r, warmup: r === 1 });
+          record = await runTrial({ task, model, resolved, models: registry, judge, runDir, repeat: r, warmup: r === 1 });
           if (record.status !== "infra_error" || attempt >= MAX_INFRA_RETRIES) break;
           onProgress?.(`retry ${attempt + 1}/${MAX_INFRA_RETRIES} infra error (${task.id}/${model.id}/r${r}): ${record.error}`);
         }

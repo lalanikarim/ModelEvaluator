@@ -13,6 +13,15 @@
 # NOTE: one model at a time per host — entries sharing an endpoint must be
 # swapped in/out of VRAM between runs; the harness refuses concurrent use.
 
+# Judge model for planning-track rubric scoring (blind LLM judge).
+# Ideally a different family than the competitors; if omitted, the first
+# competitor entry is used and flagged `same_as_competitor` in records.
+judge:
+  id: judge
+  family: qwen
+  # endpoint: http://localhost:8000/v1   # defaults to $OPENAI_BASE_URL
+  model_id: auto
+
 models:
   - id: qwen38-27b-gsq
     family: qwen
