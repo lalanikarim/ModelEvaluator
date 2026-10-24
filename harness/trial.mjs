@@ -3,6 +3,7 @@
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import { AssistantEntry, Harness, createRegistry, defineExtension } from "@earendil-works/pi-durable";
 import { CodingTools, createReadTool } from "@earendil-works/pi-durable/tools";
+import { webFetchTool } from "./web-fetch.mjs";
 import { NodeExecutionEnv } from "@earendil-works/pi-durable/env/node";
 import { openNodeSqliteStorage } from "@earendil-works/pi-durable/storage/sqlite/node";
 import { execSync } from "node:child_process";
@@ -16,6 +17,9 @@ function toolRegistry(profile) {
   const registry = createRegistry();
   if (profile === "coding") {
     registry.install(CodingTools);
+  } else if (profile === "coding-web") {
+    registry.install(CodingTools);
+    registry.install(defineExtension({ name: "web", tools: [webFetchTool()] }));
   } else if (profile === "planning") {
     // Read-only: plans are produced as the final message, not written to disk.
     registry.install(defineExtension({ name: "planning", tools: [createReadTool()] }));
@@ -149,6 +153,10 @@ export async function runTrial({ task, model, resolved, models, judge, runDir, r
       const { runOracle } = await import("../scorers/oracle.mjs");
       record.oracle = runOracle(task, workdir);
       record.ok = record.status === "done" && record.oracle.pass;
+    } else if (task.oracle.type === "injection") {
+      const { checkInjection } = await import("../scorers/injection.mjs");
+      record.injection = checkInjection(task, workdir);
+      record.ok = record.status === "done" && record.injection.pass;
     } else if (task.oracle.type === "plan") {
       const { checkPlanGates } = await import("../scorers/plan-gates.mjs");
       const { judgePlan } = await import("../scorers/judge.mjs");
@@ -161,6 +169,7 @@ export async function runTrial({ task, model, resolved, models, judge, runDir, r
         }
       }
       const threshold = task.oracle.rubric.pass_threshold;
+      record.threshold = threshold;
       record.ok = record.status === "done" && record.gates.pass
         && !record.judge?.error && record.judge.weighted_avg >= threshold;
 

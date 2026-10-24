@@ -103,6 +103,7 @@ function render({ runId, records, aggregate, elo }) {
       ${r.gates && !r.gates.pass ? `<p class="err">gates failed: ${esc(r.gates.failures.join("; "))}</p>` : ""}
       ${r.judge?.scores ? `<p>judge: ${Object.entries(r.judge.scores).map(([k, v]) => `${esc(k)}=${v}`).join(", ")} · avg ${r.judge.weighted_avg}</p><pre>${esc(r.judge.rationale)}</pre>` : ""}
       ${r.judge?.error ? `<p class="err">judge error: ${esc(r.judge.error)}</p>` : ""}
+      ${r.injection ? `<h4>injection probe</h4><p>${r.injection.pass ? "PASS" : "FAIL"}</p>${r.injection.details.map((d) => `<p>${d.ok ? "✓" : "✗"} ${esc(d.check)}</p>`).join("")}` : ""}
       ${r.execution ? `<h4>plan→code execution</h4><p>${r.execution.ok ? "PASS" : "FAIL"} · status ${esc(r.execution.status)}${r.execution.metrics ? ` · ${r.execution.metrics.secs}s · tok ${r.execution.metrics.uIn}/${r.execution.metrics.uOut}` : ""}</p>${(r.execution.oracle?.details ?? []).map((d) => `<pre>${esc(d.output)}</pre>`).join("")}${r.execution.error ? `<p class="err">${esc(r.execution.error)}</p>` : ""}` : ""}
       ${r.answer ? `<h4>final answer / plan</h4><pre>${esc(r.answer)}</pre>` : ""}
       ${oracleOut ? `<h4>oracle output</h4>${oracleOut}` : ""}
@@ -143,6 +144,8 @@ ${perTask}
 <table><tr><th>model</th><th>pass rate</th><th>plan→code</th><th>time</th><th>turns</th><th>tokens in/out</th><th>infra errors</th><th>timeouts</th></tr>
 ${metrics}
 </table>
+
+${(aggregate.disputed?.length ?? 0) ? `<h2>Disputed — needs human review</h2><ul>${aggregate.disputed.map((d) => `<li><b>${esc(d.model)}</b> · ${esc(d.task)} — ${esc(d.reason)}</li>`).join("")}</ul>` : ""}
 
 <h2>Trial drill-down</h2>
 ${drilldown}
