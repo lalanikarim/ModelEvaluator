@@ -14,6 +14,11 @@ oracle:
     criteria: [completeness, feasibility, risk_awareness, scope_discipline]
     weights: { completeness: 0.3, feasibility: 0.3, risk_awareness: 0.2, scope_discipline: 0.2 }
     pass_threshold: 3   # weighted average on a 1-5 scale must reach this to count as a pass
+bonus:
+  type: plan-to-code
+  hidden_tests:
+    - bonus_tests/test_retry_implemented.py
+  budget: { max_turns: 25, max_tokens: 60000, timeout_sec: 420 }
 budget:
   max_turns: 15
   max_tokens: 40000

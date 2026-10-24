@@ -35,6 +35,12 @@ function validate(task, relPath) {
   for (const k of ["max_turns", "max_tokens", "timeout_sec"]) {
     if (typeof b[k] !== "number" || b[k] <= 0) throw new Error(`${relPath}: budget.${k} must be a positive number`);
   }
+  if (task.bonus) {
+    if (task.bonus.type !== "plan-to-code") throw new Error(`${relPath}: unknown bonus.type '${task.bonus.type}'`);
+    for (const t of task.bonus.hidden_tests ?? []) {
+      if (!existsSync(join(task.dir, t))) throw new Error(`${relPath}: bonus test not found: ${t}`);
+    }
+  }
   task.repeats = task.repeats ?? 5;
   if (!Number.isInteger(task.repeats) || task.repeats < 1) throw new Error(`${relPath}: repeats must be a positive integer`);
   return task;
