@@ -86,7 +86,7 @@ function render({ runId, records, aggregate, elo }) {
   }).join("");
 
   const metrics = models.map((m) =>
-    `<tr><td>${esc(m.model)}</td><td>${pct(m.pass_rate)}</td><td>${m.mean_secs?.toFixed(1) ?? "—"}s (±${m.secs_stddev?.toFixed(1) ?? 0})</td>` +
+    `<tr><td>${esc(m.model)}</td><td>${pct(m.pass_rate)}</td><td>${pct(m.plan_to_code_rate)}</td><td>${m.mean_secs?.toFixed(1) ?? "—"}s (±${m.secs_stddev?.toFixed(1) ?? 0})</td>` +
     `<td>${m.mean_turns?.toFixed(1) ?? "—"}</td><td>${Math.round(m.mean_tokens_in ?? 0)} / ${Math.round(m.mean_tokens_out ?? 0)}</td>` +
     `<td>${m.infra_errors}</td><td>${m.timeouts}</td></tr>`,
   ).join("");
@@ -103,6 +103,7 @@ function render({ runId, records, aggregate, elo }) {
       ${r.gates && !r.gates.pass ? `<p class="err">gates failed: ${esc(r.gates.failures.join("; "))}</p>` : ""}
       ${r.judge?.scores ? `<p>judge: ${Object.entries(r.judge.scores).map(([k, v]) => `${esc(k)}=${v}`).join(", ")} · avg ${r.judge.weighted_avg}</p><pre>${esc(r.judge.rationale)}</pre>` : ""}
       ${r.judge?.error ? `<p class="err">judge error: ${esc(r.judge.error)}</p>` : ""}
+      ${r.execution ? `<h4>plan→code execution</h4><p>${r.execution.ok ? "PASS" : "FAIL"} · status ${esc(r.execution.status)}${r.execution.metrics ? ` · ${r.execution.metrics.secs}s · tok ${r.execution.metrics.uIn}/${r.execution.metrics.uOut}` : ""}</p>${(r.execution.oracle?.details ?? []).map((d) => `<pre>${esc(d.output)}</pre>`).join("")}${r.execution.error ? `<p class="err">${esc(r.execution.error)}</p>` : ""}` : ""}
       ${r.answer ? `<h4>final answer / plan</h4><pre>${esc(r.answer)}</pre>` : ""}
       ${oracleOut ? `<h4>oracle output</h4>${oracleOut}` : ""}
     </details>`;
@@ -128,8 +129,8 @@ summary{cursor:pointer}
 <p class="meta">generated ${new Date().toISOString()} · ${records.length} trials · self-contained (no external assets)</p>
 
 <h2>Ranking (Elo, K=32, per-task pass counts)</h2>
-<table><tr><th>#</th><th>model</th><th>Elo</th><th>family</th><th>quant</th><th>pass rate</th></tr>
-${ranked.map((e, i) => `<tr><td>${i + 1}</td><td>${esc(e.model)}</td><td>${e.elo}</td><td>${esc(e.meta?.family ?? "?")}</td><td>${esc(e.meta?.quant ?? "?")}</td><td>${pct(e.meta?.pass_rate)}</td></tr>`).join("")}
+<table><tr><th>#</th><th>model</th><th>Elo</th><th>family</th><th>quant</th><th>pass rate</th><th>plan→code</th></tr>
+${ranked.map((e, i) => `<tr><td>${i + 1}</td><td>${esc(e.model)}</td><td>${e.elo}</td><td>${esc(e.meta?.family ?? "?")}</td><td>${esc(e.meta?.quant ?? "?")}</td><td>${pct(e.meta?.pass_rate)}</td><td>${pct(e.meta?.plan_to_code_rate)}</td></tr>`).join("")}
 </table>
 
 <h2>Pairwise win rate (per-task)</h2>
@@ -139,7 +140,7 @@ ${matrix || "<p>single-model run — no pairwise data</p>"}
 ${perTask}
 
 <h2>Metrics (scored trials, warm-up excluded)</h2>
-<table><tr><th>model</th><th>pass rate</th><th>time</th><th>turns</th><th>tokens in/out</th><th>infra errors</th><th>timeouts</th></tr>
+<table><tr><th>model</th><th>pass rate</th><th>plan→code</th><th>time</th><th>turns</th><th>tokens in/out</th><th>infra errors</th><th>timeouts</th></tr>
 ${metrics}
 </table>
 

@@ -5,13 +5,14 @@ import { execFileSync } from "node:child_process";
 import { join } from "node:path";
 
 /**
- * Run all hidden tests for a task against workdir.
+ * Run hidden tests for a task against workdir.
+ * @param {string} [testRelPaths] override the test list (e.g. bonus tests)
  * @returns {{ pass: boolean, details: Array<{test: string, ok: boolean, output: string}> }}
  */
-export function runOracle(task, workdir) {
+export function runOracle(task, workdir, testRelPaths) {
   const details = [];
   let pass = true;
-  for (const rel of task.oracle.hidden_tests ?? []) {
+  for (const rel of testRelPaths ?? task.oracle.hidden_tests ?? []) {
     const testPath = join(task.dir, rel);
     let ok = false, output = "";
     try {

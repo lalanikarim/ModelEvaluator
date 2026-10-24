@@ -21,12 +21,15 @@ export function aggregate(records) {
     b.scored.push(r);
   }
 
-  const models = Object.values(byModel).map((b) => ({
+  const models = Object.values(byModel).map((b) => {
+    const execs = b.scored.filter((r) => r.execution);
+    return {
     model: b.model,
     family: b.family,
     quant: b.quant,
     scored_trials: b.scored.length,
     pass_rate: b.scored.length ? b.scored.filter((r) => r.ok).length / b.scored.length : null,
+    plan_to_code_rate: execs.length ? execs.filter((r) => r.execution.ok).length / execs.length : null,
     mean_secs: mean(b.scored.map((r) => r.metrics?.secs ?? 0)),
     secs_stddev: stddev(b.scored.map((r) => r.metrics?.secs ?? 0)),
     mean_turns: mean(b.scored.map((r) => r.metrics?.turns ?? 0)),
@@ -34,7 +37,8 @@ export function aggregate(records) {
     mean_tokens_out: mean(b.scored.map((r) => r.metrics?.uOut ?? 0)),
     infra_errors: b.infra_errors,
     timeouts: b.timeouts,
-  }));
+    };
+  });
 
   // Pairwise win rate on common (task, repeat) pairs where both models scored.
   const pairs = [];

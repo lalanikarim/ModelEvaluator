@@ -6,7 +6,7 @@ import { CodingTools, createReadTool } from "@earendil-works/pi-durable/tools";
 import { NodeExecutionEnv } from "@earendil-works/pi-durable/env/node";
 import { openNodeSqliteStorage } from "@earendil-works/pi-durable/storage/sqlite/node";
 import { execSync } from "node:child_process";
-import { cpSync, existsSync, mkdirSync, readdirSync, statSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 const ctx = BACKGROUND_CONTEXT;
@@ -30,6 +30,63 @@ function gitCommit() {
     return execSync("git rev-parse --short HEAD", { stdio: "pipe" }).toString().trim();
   } catch {
     return "no-git";
+  }
+}
+
+/**
+ * Run one agent pass (a single prompt through a fresh harness conversation) and
+ * collect status, final answer text, and transcript metrics.
+ * Throws on infra failure; returns status 'timeout' on budget expiry.
+ */
+async function runAgentPass({ dbPath, workdir, models, resolved, model, profile, prompt, requestId, timeoutSec }) {
+  const t0 = Date.now();
+  let h = null;
+  try {
+    h = await Harness.open(
+      await openNodeSqliteStorage(dbPath),
+      { models, registry: toolRegistry(profile), env: () => new NodeExecutionEnv({ cwd: workdir }) },
+      ctx,
+    );
+    h.resume();
+    const root = await h.root(ctx, {
+      agent: { model: { provider: resolved.providerId, modelId: resolved.modelId }, thinkingLevel: model.thinking_level },
+    });
+    const sub = await root.submit({ type: "input", content: prompt, requestId }, ctx);
+
+    let settled;
+    try {
+      settled = await Promise.race([
+        sub.wait(ctx),
+        new Promise((_, rej) => setTimeout(() => rej(new Error(`timeout after ${timeoutSec}s`)), timeoutSec * 1000).unref()),
+      ]);
+    } catch (err) {
+      if (/^timeout/.test(err.message)) return { status: "timeout", answer: "", metrics: null, error: err.message };
+      throw err; // infra/model failure — let the caller classify
+    }
+
+    const page = await root.commit((tx) => tx.scanEntries({ conversationId: root.id }, 1000), ctx);
+    let turns = 0, toolCalls = 0, toolErrors = 0, uIn = 0, uOut = 0;
+    for (const item of page.items) {
+      const k = item.kind ?? "unknown";
+      if (k === "pi.assistant") {
+        turns++;
+        for (const m of item.model ?? []) { uIn += m.usage?.input ?? 0; uOut += m.usage?.output ?? 0; }
+      }
+      if (k === "pi.tool-result") {
+        toolCalls++;
+        const s = JSON.stringify(item);
+        if (s.includes('"error"') || s.includes("interrupted") || s.includes("failed")) toolErrors++;
+      }
+    }
+    let answer = "";
+    let status = settled?.status === "done" ? "done" : `settled:${settled?.status ?? "unknown"}`;
+    if (status === "done") {
+      const a = await root.commit((tx) => tx.entry(AssistantEntry, settled.answer), ctx);
+      answer = (a?.model ?? []).flatMap((m) => m.content.filter((c) => c.type === "text").map((c) => c.text)).join("\n");
+    }
+    return { status, answer, metrics: { secs: +((Date.now() - t0) / 1000).toFixed(1), turns, toolCalls, toolErrors, uIn, uOut }, error: null };
+  } finally {
+    if (h) await h.close(ctx).catch(() => {});
   }
 }
 
@@ -72,65 +129,20 @@ export async function runTrial({ task, model, resolved, models, judge, runDir, r
     start_ts: new Date().toISOString(),
   };
 
-  let h = null;
-  const t0 = Date.now();
   const record = { manifest, status: "failed", ok: false, oracle: null, answer: "", metrics: null, error: null };
   try {
-    h = await Harness.open(
-      await openNodeSqliteStorage(join(trialDir, "trial.sqlite")),
-      { models, registry: toolRegistry(task.tools), env: () => new NodeExecutionEnv({ cwd: workdir }) },
-      ctx,
-    );
-    h.resume();
-    const root = await h.root(ctx, {
-      agent: { model: { provider: resolved.providerId, modelId: resolved.modelId }, thinkingLevel: model.thinking_level },
+    const pass = await runAgentPass({
+      dbPath: join(trialDir, "trial.sqlite"),
+      workdir, models, resolved, model,
+      profile: task.tools,
+      prompt: task.prompt,
+      requestId: `mev-${task.id}-${model.id}-r${repeat}`,
+      timeoutSec: task.budget.timeout_sec,
     });
-    const sub = await root.submit(
-      { type: "input", content: task.prompt, requestId: `mev-${task.id}-${model.id}-r${repeat}` },
-      ctx,
-    );
-
-    // Enforce the time budget; treat expiry as a distinct status.
-    const timeoutMs = task.budget.timeout_sec * 1000;
-    let settled;
-    try {
-      settled = await Promise.race([
-        sub.wait(ctx),
-        new Promise((_, rej) => setTimeout(() => rej(new Error(`timeout after ${task.budget.timeout_sec}s`)), timeoutMs).unref()),
-      ]);
-    } catch (err) {
-      if (/^timeout/.test(err.message)) {
-        record.status = "timeout";
-        record.error = err.message;
-      } else {
-        throw err; // rethrow: infra/model failure, handled by scheduler retry
-      }
-    }
-
-    // Metrics from the conversation transcript.
-    const page = await root.commit((tx) => tx.scanEntries({ conversationId: root.id }, 1000), ctx);
-    let turns = 0, toolCalls = 0, toolErrors = 0, uIn = 0, uOut = 0;
-    for (const item of page.items) {
-      const k = item.kind ?? "unknown";
-      if (k === "pi.assistant") {
-        turns++;
-        for (const m of item.model ?? []) { uIn += m.usage?.input ?? 0; uOut += m.usage?.output ?? 0; }
-      }
-      if (k === "pi.tool-result") {
-        toolCalls++;
-        const s = JSON.stringify(item);
-        if (s.includes('"error"') || s.includes("interrupted") || s.includes("failed")) toolErrors++;
-      }
-    }
-    record.metrics = { secs: +( (Date.now() - t0) / 1000 ).toFixed(1), turns, toolCalls, toolErrors, uIn, uOut };
-
-    if (settled && settled.status === "done") {
-      const a = await root.commit((tx) => tx.entry(AssistantEntry, settled.answer), ctx);
-      record.answer = (a?.model ?? []).flatMap((m) => m.content.filter((c) => c.type === "text").map((c) => c.text)).join("\n");
-      if (record.status !== "timeout") record.status = "done";
-    } else {
-      record.error = `run settled with status ${settled?.status ?? "unknown"}`;
-    }
+    record.status = pass.status;
+    record.answer = pass.answer;
+    record.metrics = pass.metrics;
+    record.error = pass.error ?? (pass.status !== "done" ? `run settled with status ${pass.status}` : null);
 
     // Scoring dispatch: coding track -> hidden tests; planning track -> gates + blind LLM judge.
     if (task.oracle.type === "tests") {
@@ -151,6 +163,36 @@ export async function runTrial({ task, model, resolved, models, judge, runDir, r
       const threshold = task.oracle.rubric.pass_threshold;
       record.ok = record.status === "done" && record.gates.pass
         && !record.judge?.error && record.judge.weighted_avg >= threshold;
+
+      // Bonus: plan-to-code — feed the plan back to a coding agent in a fresh
+      // workdir and verify the result against hidden tests. Reported separately.
+      if (task.bonus?.type === "plan-to-code" && record.status === "done") {
+        const execDir = join(trialDir, "execution");
+        const execWork = join(execDir, "work");
+        mkdirSync(execWork, { recursive: true });
+        if (existsSync(fixtureDir)) cpSync(fixtureDir, execWork, { recursive: true });
+        const bonusBudget = task.bonus.budget ?? task.budget;
+        try {
+          const execPass = await runAgentPass({
+            dbPath: join(execDir, "execution.sqlite"),
+            workdir: execWork, models, resolved, model,
+            profile: "coding",
+            prompt: `You are implementing an approved implementation plan. Implement it now in your working directory. Use your tools to make the changes and verify by running the code where applicable.\n\n<plan>\n${record.answer}\n</plan>`,
+            requestId: `mev-${task.id}-${model.id}-r${repeat}-exec`,
+            timeoutSec: bonusBudget.timeout_sec,
+          });
+          const { runOracle } = await import("../scorers/oracle.mjs");
+          const bonusOracle = runOracle(task, execWork, task.bonus.hidden_tests);
+          record.execution = {
+            status: execPass.status,
+            metrics: execPass.metrics,
+            oracle: bonusOracle,
+            ok: execPass.status === "done" && bonusOracle.pass,
+          };
+        } catch (err) {
+          record.execution = { status: "infra_error", error: String(err?.message ?? err).slice(0, 300) };
+        }
+      }
     } else {
       record.ok = false; // unknown oracle type (should be caught by validation)
     }
@@ -159,7 +201,6 @@ export async function runTrial({ task, model, resolved, models, judge, runDir, r
     record.status = "infra_error";
     record.error = String(err?.message ?? err).slice(0, 500);
   } finally {
-    if (h) await h.close(ctx).catch(() => {});
     manifest.end_ts = new Date().toISOString();
     writeFileSync(join(trialDir, "manifest.json"), JSON.stringify(manifest, null, 2));
     writeFileSync(join(trialDir, "record.json"), JSON.stringify(record, null, 2));
