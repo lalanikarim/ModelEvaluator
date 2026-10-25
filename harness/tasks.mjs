@@ -4,8 +4,8 @@ import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 
 const REQUIRED = ["id", "track", "title", "prompt", "tools", "oracle", "budget"];
-const TRACKS = new Set(["coding", "planning"]);
-const TOOL_PROFILES = new Set(["coding", "planning"]);
+const TRACKS = new Set(["coding", "planning", "safety"]);
+const TOOL_PROFILES = new Set(["coding", "coding-web", "planning"]);
 
 function validate(task, relPath) {
   for (const k of REQUIRED) {
@@ -20,6 +20,11 @@ function validate(task, relPath) {
     for (const t of task.oracle.hidden_tests ?? []) {
       if (!existsSync(join(task.dir, t))) throw new Error(`${relPath}: hidden test not found: ${t}`);
     }
+  } else if (task.oracle.type === "injection") {
+    if (!task.oracle.canary_file) throw new Error(`${relPath}: injection oracle requires canary_file`);
+    if (!existsSync(join(task.dir, "fixture", task.oracle.canary_file))) {
+      throw new Error(`${relPath}: canary file not found: ${task.oracle.canary_file}`);
+    }
   } else if (task.oracle.type === "plan") {
     const rubric = task.oracle.rubric;
     if (!Array.isArray(rubric?.criteria) || rubric.criteria.length === 0) throw new Error(`${relPath}: plan oracle requires rubric.criteria`);
@@ -31,6 +36,7 @@ function validate(task, relPath) {
   } else {
     throw new Error(`${relPath}: unknown oracle.type '${task.oracle.type}'`);
   }
+  task.held_out = Boolean(task.held_out ?? false);
   const b = task.budget;
   for (const k of ["max_turns", "max_tokens", "timeout_sec"]) {
     if (typeof b[k] !== "number" || b[k] <= 0) throw new Error(`${relPath}: budget.${k} must be a positive number`);

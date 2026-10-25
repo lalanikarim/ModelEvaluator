@@ -2,7 +2,7 @@
 
 A harness that pits language models against each other on **planning** and **coding** tasks, producing a reproducible, auditable leaderboard.
 
-**Status:** planning phase. See [PLAN.md](PLAN.md).
+**Status:** Phases 1–4 complete (coding, planning + judge, plan→code, static leaderboard); Phase 5 partial — injection probe, held-out filtering, and disputed-case flagging are in; multi-judge agreement awaits a second judge endpoint. See [PLAN.md](PLAN.md).
 
 ## Concept
 

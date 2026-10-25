@@ -20,6 +20,7 @@ const { values } = parseArgs({
     models: { type: "string" },
     tasks: { type: "string" },
     repeats: { type: "string" },
+    "include-held-out": { type: "boolean" },
     "run-id": { type: "string" },
   },
 });
@@ -38,6 +39,8 @@ if (values.list) {
 }
 
 let tasks = loadTasks("tasks", values.track);
+// Held-out tasks are excluded from normal runs (final leaderboard only).
+if (!values["include-held-out"]) tasks = tasks.filter((t) => !t.held_out);
 if (tasks.length === 0) {
   console.error(`no tasks found for track '${values.track ?? "(all)"}' in tasks/`);
   process.exit(1);

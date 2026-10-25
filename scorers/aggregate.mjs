@@ -58,5 +58,19 @@ export function aggregate(records) {
     }
   }
 
-  return { generated_at: new Date().toISOString(), models, pairwise: pairs };
+  // Disputed cases for human review: judge errors, or borderline rubric scores
+  // (within 0.5 of the pass threshold).
+  const disputed = records
+    .filter((r) => !r.warmup && r.manifest.task_id)
+    .map((r) => {
+      if (r.judge?.error) return { model: r.manifest.model_id, task: r.manifest.task_id, reason: `judge error: ${r.judge.error}` };
+      if (r.judge?.weighted_avg != null && r.threshold != null) {
+        const diff = Math.abs(r.judge.weighted_avg - r.threshold);
+        if (diff <= 0.5) return { model: r.manifest.model_id, task: r.manifest.task_id, reason: `borderline rubric ${r.judge.weighted_avg} vs threshold ${r.threshold}` };
+      }
+      return null;
+    })
+    .filter(Boolean);
+
+  return { generated_at: new Date().toISOString(), models, pairwise: pairs, disputed };
 }

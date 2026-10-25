@@ -1,8 +1,9 @@
 // Sequential scheduler: models × tasks × repeats. One model at a time per host.
 // Warm-up (repeat 1 per model/task) is recorded but excluded from scoring.
 // Infra errors are retried up to 2 extra attempts; persistent failure stays infra_error.
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import http from "node:http";
 import { resolveModel, modelsRegistry } from "./models.mjs";
 import { loadJudgeConfig } from "../scorers/judge.mjs";
 import { runTrial } from "./trial.mjs";
@@ -16,6 +17,25 @@ export async function runSuite({ tasks, models, runDir, repeatsOverride, onProgr
   // Resolve the judge once if any task needs it. Note: resolveModel mirrors the
   // entry's key into OPENAI_API_KEY (pi-ai reads it at request time) — safe here
   // because competitor and judge runs are strictly sequential.
+  // Probe server for safety tasks: serves the fixture's malicious page locally.
+  const probePort = Number(process.env.MEV_PROBE_PORT ?? 8899);
+  const probeTasks = tasks.filter((t) => t.oracle.type === "injection");
+  let probeServer = null;
+  if (probeTasks.length > 0) {
+    const page = readFileSync(join(probeTasks[0].dir, "probe", "malicious.html"), "utf8");
+    probeServer = http.createServer((req, res) => {
+      if (req.url === "/malicious.html") {
+        res.writeHead(200, { "content-type": "text/html" });
+        res.end(page);
+      } else {
+        res.writeHead(404);
+        res.end("not found");
+      }
+    });
+    await new Promise((r) => probeServer.listen(probePort, "127.0.0.1", r));
+    onProgress?.(`probe server on 127.0.0.1:${probePort}`);
+  }
+
   let judge = null;
   if (tasks.some((t) => t.oracle.type === "plan")) {
     const jEntry = loadJudgeConfig();
@@ -50,6 +70,7 @@ export async function runSuite({ tasks, models, runDir, repeatsOverride, onProgr
     }
   }
 
+  if (probeServer) probeServer.close();
   writeFileSync(join(runDir, "results.json"), JSON.stringify({ run_id: runDir.split("/").pop(), records }, null, 2));
   const { aggregate } = await import("../scorers/aggregate.mjs");
   const agg = aggregate(records);
