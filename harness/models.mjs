@@ -55,7 +55,7 @@ export function modelsRegistry(entry, resolved) {
   models.setProvider(
     createProvider({
       id: resolved.providerId,
-      name: `ModelEvaluator endpoint (${entry.id})`,
+      name: `modelarena endpoint (${entry.id})`,
       baseUrl: resolved.baseUrl,
       auth: { apiKey: envApiKeyAuth("OpenAI-compatible API key", [resolved.apiKeyEnv]) },
       models: [{

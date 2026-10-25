@@ -2,7 +2,7 @@
 
 ## What this is
 
-ModelEvaluator: a harness for pitting language models against each other on planning and coding tasks. See [PLAN.md](PLAN.md) and [README.md](README.md).
+modelarena: a harness for pitting language models against each other on planning and coding tasks. See [PLAN.md](PLAN.md) and [README.md](README.md).
 
 ## Repo layout
 

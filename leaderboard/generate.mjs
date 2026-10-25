@@ -112,7 +112,7 @@ function render({ runId, records, aggregate, elo }) {
 
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
-<title>ModelEvaluator — run ${esc(runId)}</title>
+<title>modelarena — run ${esc(runId)}</title>
 <style>
 body{font-family:-apple-system,system-ui,sans-serif;margin:2rem auto;max-width:960px;color:#1a1a1a;line-height:1.5}
 h1{border-bottom:2px solid #333;padding-bottom:.4rem}
@@ -126,7 +126,7 @@ summary{cursor:pointer}
 .err{color:#b00020}
 .meta{color:#555;font-size:.9rem}
 </style></head><body>
-<h1>ModelEvaluator — run ${esc(runId)}</h1>
+<h1>modelarena — run ${esc(runId)}</h1>
 <p class="meta">generated ${new Date().toISOString()} · ${records.length} trials · self-contained (no external assets)</p>
 
 <h2>Ranking (Elo, K=32, per-task pass counts)</h2>

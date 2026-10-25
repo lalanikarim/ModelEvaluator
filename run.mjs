@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// ModelEvaluator CLI.
+// modelarena CLI.
 //
 //   node run.mjs --list                        list tasks + model matrix (no endpoint needed)
 //   node run.mjs --track coding                run the coding suite

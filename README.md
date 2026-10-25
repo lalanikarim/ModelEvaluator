@@ -1,4 +1,4 @@
-# ModelEvaluator
+# modelarena
 
 A harness that pits language models against each other on **planning** and **coding** tasks, producing a reproducible, auditable leaderboard.
 

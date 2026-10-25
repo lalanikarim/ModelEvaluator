@@ -1,5 +1,5 @@
 {
-  "name": "model-evaluator",
+  "name": "modelarena",
   "version": "0.1.0",
   "description": "Harness that pits language models against each other on planning and coding tasks, with reproducible runs and a static leaderboard.",
   "type": "module",

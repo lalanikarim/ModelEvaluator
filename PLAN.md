@@ -1,4 +1,4 @@
-# PLAN — ModelEvaluator
+# PLAN — modelarena
 
 ## Goal
 
@@ -14,7 +14,7 @@ Build a harness that pits language models against each other on planning and cod
 ## Architecture
 
 ```
-ModelEvaluator/
+modelarena/
 ├── tasks/          Task fixtures (YAML) — coding + planning suites
 ├── harness/        Runner: scheduler, isolation, artifact capture, manifest
 ├── scorers/        Oracle plugin (test runner) + LLM-judge plugin
