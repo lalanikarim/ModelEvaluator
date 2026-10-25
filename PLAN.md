@@ -1,4 +1,4 @@
-# PLAN — modelarena
+# PLAN — Model Arena
 
 ## Goal
 
